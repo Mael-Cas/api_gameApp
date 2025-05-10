@@ -1,8 +1,34 @@
 const db = require("../db");
 
 exports.getAllGames = async (req, res) => {
-  const [rows] = await db.query("SELECT * FROM Games");
-  res.json(rows);
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Get total count of games
+    const [countResult] = await db.query("SELECT COUNT(*) as total FROM Games");
+    const total = countResult[0].total;
+
+    // Get paginated games
+    const [rows] = await db.query(
+      "SELECT * FROM Games LIMIT ? OFFSET ?",
+      [limit, offset]
+    );
+
+    res.json({
+      games: rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        hasMore: offset + rows.length < total
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in getAllGames:', error);
+    res.status(500).json({ error: 'Error while fetching games' });
+  }
 };
 
 exports.getGameById = async (req, res) => {

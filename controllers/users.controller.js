@@ -36,12 +36,37 @@ exports.createUser = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
-  const { email, password, permission } = req.body;
-  await db.query(
-    "UPDATE Users SET email = ?, password = ?, permission = ? WHERE user_id = ?",
-    [email, password, permission, req.params.id]
-  );
-  res.json({ message: "User updated" });
+  try {
+    const { email, password, permission } = req.body;
+    const userId = req.params.id;
+
+    // Vérifier si l'utilisateur existe
+    const [existingUser] = await db.query("SELECT * FROM Users WHERE user_id = ?", [userId]);
+    if (existingUser.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Préparer les valeurs à mettre à jour
+    let updateValues = [email, permission];
+    let updateQuery = "UPDATE Users SET email = ?, permission = ?";
+
+    // Si un nouveau mot de passe est fourni, le hasher et l'ajouter à la mise à jour
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      updateValues.push(hashedPassword);
+      updateQuery += ", password = ?";
+    }
+
+    // Ajouter l'ID à la fin des valeurs
+    updateValues.push(userId);
+    updateQuery += " WHERE user_id = ?";
+
+    await db.query(updateQuery, updateValues);
+    res.json({ message: "User updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating user", error: error.message });
+  }
 };
 
 exports.deleteUser = async (req, res) => {
