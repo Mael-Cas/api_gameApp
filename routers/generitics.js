@@ -1,10 +1,12 @@
 const express = require('express');
 const middleware = require('../middleware/allowedTable');
 const controller = require('../controllers/generics');
+const accessManager = require('../middleware/acessManager');
 
 const router = express.Router();
 
 router.param('table', middleware.allowedTable);
+router.use(accessManager.RouterAccess);
 
 // Routes
 router.get('/:table', controller.getAll);

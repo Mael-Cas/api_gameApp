@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const possessController = require('../controllers/possess.controller');
+const accessManager = require('../middleware/acessManager');
+
+router.use(accessManager.RouterAccess);
 
 // Get all game users
 router.get('/', possessController.getAllGameUsers);
@@ -13,5 +16,7 @@ router.post('/', possessController.createGameUser);
 
 // Delete a game user relationship
 router.delete('/', possessController.deleteGameUser);
+
+router.post('/:id/swipe', possessController.swipeGame);
 
 module.exports = router;

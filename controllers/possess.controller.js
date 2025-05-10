@@ -30,3 +30,30 @@ exports.deleteGameUser = async (req, res) => {
   ]);
   res.json({ message: "GameUser deleted" });
 };
+
+exports.swipeGame = async (req, res) => {
+  const  gameId = req.params;
+  const userId = req.auth.userId;
+  const { swipe } = req.body; // doit être 1 (like) ou -1 (dislike)
+
+  // Validation rapide
+  if (![1, -1].includes(swipe)) {
+    return res.status(400).json({ message: "Swipe must be 1 (like) or -1 (dislike)" });
+  }
+
+  try {
+    const [result] = await db.query("CALL swipe_game(?, ?, ?)", [
+      userId,
+      gameId,
+      swipe,
+    ]);
+
+    res.status(200).json({
+      message: "Swipe enregistré avec succès",
+      info: result[0] || null, // SELECT dans la proc : ligne 'info'
+    });
+  } catch (error) {
+    console.error("❌ Error in swipeGame:", error);
+    res.status(500).json({ error: "Erreur lors du swipe du jeu" });
+  }
+};

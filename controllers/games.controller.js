@@ -13,6 +13,31 @@ exports.getGameById = async (req, res) => {
   res.json(rows[0]);
 };
 
+exports.searchGamesByName = async (req, res) => {
+    const nameQuery = req.query.name;
+
+    if (!nameQuery || nameQuery.trim() === "") {
+        return res.status(400).json({ message: "Missing or empty 'name' query parameter" });
+    }
+
+    try {
+        const [games] = await db.query(
+            `SELECT Id, name, thumbnail, description, 
+              CONCAT(minplayers, ' - ', maxplayers) AS players,
+              playingtime, minage 
+       FROM Games 
+       WHERE name LIKE ?`,
+            [`%${nameQuery}%`]
+        );
+
+        res.status(200).json({ games });
+    } catch (error) {
+        console.error("❌ Error in searchGamesByName:", error);
+        res.status(500).json({ error: "Error while searching for games" });
+    }
+};
+
+
 exports.createGame = async (req, res) => {
   const {
     name,
@@ -144,37 +169,45 @@ exports.deleteGame = async (req, res) => {
 };
 
 exports.getRandomGamesAndPossess = async (req, res) => {
-  const userId = req.params.userId;
-  
-  try {
-    // First, get 10 random games with formatted player count
-    const [randomGames] = await db.query(
-      `SELECT Id, name, thumbnail, description, 
+    const userId = req.params.userId;
+    const minPlayers = req.query.minPlayers ? Number(req.query.minPlayers) : null;
+
+    try {
+        let sql = `
+      SELECT Id, name, thumbnail, description, 
       CONCAT(minplayers, ' - ', maxplayers) as players,
       playingtime, minage 
-      FROM Games ORDER BY RAND() LIMIT 10`
-    );
+      FROM Games
+    `;
+        const values = [];
 
-    if (randomGames.length === 0) {
-      return res.status(404).json({ message: "No games found" });
+        if (minPlayers !== null) {
+            sql += ` WHERE minplayers >= ?`;
+            values.push(minPlayers);
+        }
+
+        sql += ` ORDER BY RAND() LIMIT 10`;
+
+        const [randomGames] = await db.query(sql, values);
+
+        if (randomGames.length === 0) {
+            return res.status(404).json({ message: "No games found" });
+        }
+
+        for (const game of randomGames) {
+            await db.query(
+                "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, false)",
+                [game.Id, userId]
+            );
+        }
+
+        res.status(201).json({ games: randomGames });
+    } catch (error) {
+        console.error('❌ Error in getRandomGamesAndPossess:', error);
+        res.status(500).json({ error: 'Error while adding random games to user collection' });
     }
-
-    // Create possess entries for each game
-    for (const game of randomGames) {
-      await db.query(
-        "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, false)",
-        [game.Id, userId]
-      );
-    }
-
-    res.status(201).json({ 
-      games: randomGames
-    });
-  } catch (error) {
-    console.error('❌ Error in getRandomGamesAndPossess:', error);
-    res.status(500).json({ error: 'Error while adding random games to user collection' });
-  }
 };
+
 
 
 
