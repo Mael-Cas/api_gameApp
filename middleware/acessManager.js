@@ -1,0 +1,3 @@
+exports.RouterAccess = (req, res) => {
+
+}

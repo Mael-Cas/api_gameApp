@@ -1,4 +1,6 @@
 const express = require("express");
+const cors = require("cors")
+
 const generics = require('./routers/generitics');
 const games = require('./routers/games.routes');
 const users = require('./routers/users.routes');
@@ -8,6 +10,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cors());
 
 // Route de test
 app.get('/', (req, res) => {
