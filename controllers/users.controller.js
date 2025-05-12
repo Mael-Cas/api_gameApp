@@ -8,8 +8,9 @@ exports.getAllUsers = async (req, res) => {
 };
 
 exports.getUserById = async (req, res) => {
+
   const [rows] = await db.query("SELECT * FROM Users WHERE user_id = ?", [
-    req.auth.id,
+    req.user.userId,
   ]);
   if (rows.length === 0) return res.status(404).json({ message: "Not found" });
   res.json(rows[0]);
