@@ -271,6 +271,28 @@ exports.favoriteGame = async (req, res) => {
 
 }
 
+exports.getFavoriteGame = async (req, res) => {
+    const userId = req.user.userId;
+
+    try {
+        // Récupère les jeux favoris pour un utilisateur donné en utilisant la vue
+        const [favoriteGames] = await db.query(
+            "SELECT * FROM user_favorite_game WHERE user_id = ?",
+            [userId]
+        );
+
+        if (favoriteGames.length === 0) {
+            return res.status(404).json({ message: "Aucun jeu favori trouvé pour cet utilisateur." });
+        }
+
+        res.status(200).json({ favoriteGames });
+    } catch (error) {
+        console.error("❌ Error in getFavoriteGame:", error);
+        res.status(500).json({ error: "Erreur lors de la récupération des jeux favoris." });
+    }
+
+}
+
 
 
 

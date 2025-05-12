@@ -26,6 +26,10 @@ router.delete('/:id', accessManager.RouterAccess, accessManager.authorizeRole("a
 // Get random games and create possess entries
 router.get('/random/:userId',accessManager.RouterAccess ,gamesController.getRandomGamesAndPossess);
 
+// Add game to user favorite
 router.post('/favorite', accessManager.RouterAccess, gamesController.favoriteGame)
+
+// Get all favorite game of a user
+router.get('/favorite', accessManager.RouterAccess, gamesController.getFavoriteGame)
 
 module.exports = router;
