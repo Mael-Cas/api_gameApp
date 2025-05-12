@@ -235,5 +235,42 @@ exports.getRandomGamesAndPossess = async (req, res) => {
 };
 
 
+exports.favoriteGame = async (req, res) => {
+    const {  gameId, favorite } = req.body;
+    const userId = req.user.userId;
+
+    if (typeof favorite !== 'boolean') {
+        return res.status(400).json({ error: "'favorite' doit être un booléen." });
+    }
+
+    try {
+        const [existing] = await db.query(
+            "SELECT * FROM possess WHERE user_id = ? AND Id = ?",
+            [userId, gameId]
+        );
+
+        if (existing.length === 0) {
+            // Si l’entrée n’existe pas, on peut l’insérer avec le favori
+            await db.query(
+                "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, ?)",
+                [gameId, userId, favorite]
+            );
+        } else {
+            // Sinon on met à jour le champ favorite
+            await db.query(
+                "UPDATE possess SET favorite = ? WHERE user_id = ? AND Id = ?",
+                [favorite, userId, gameId]
+            );
+        }
+
+        res.status(200).json({ message: "Mise à jour du favori réussie." });
+    } catch (error) {
+        console.error("❌ Error in favoriteGame:", error);
+        res.status(500).json({ error: "Erreur lors de la mise à jour du favori." });
+    }
+
+}
+
+
 
 
