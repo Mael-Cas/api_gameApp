@@ -24,7 +24,7 @@ exports.RouterAccess = (req, res, next) => {
 
 exports.authorizeRole = (requiredRole) => {
     return (req, res, next) => {
-        if (req.user?.role !== requiredRole) {
+        if (req.user?.permission !== requiredRole) {
             return res.status(403).json({ message: 'Accès interdit, rôle insuffisant' });
         }
         next(); // Passer à la route suivante si l'utilisateur a le rôle requis

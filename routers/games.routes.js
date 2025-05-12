@@ -3,7 +3,7 @@ const router = express.Router();
 const gamesController = require('../controllers/games.controller');
 const accessManager = require('../middleware/acessManager');
 
-router.use(accessManager.RouterAccess);
+
 
 // Get all games
 router.get('/',gamesController.getAllGames);
@@ -15,15 +15,15 @@ router.get('/:id', gamesController.getGameById);
 router.get('/:name', gamesController.searchGamesByName);
 
 // Create a new game
-router.post('/', gamesController.createGame);
+router.post('/', accessManager.RouterAccess, accessManager.authorizeRole("admin"),gamesController.createGame);
 
 // Update a game
-router.put('/:id', gamesController.updateGame);
+router.put('/:id', accessManager.RouterAccess, accessManager.authorizeRole("admin"),gamesController.updateGame);
 
 // Delete a game
-router.delete('/:id', gamesController.deleteGame);
+router.delete('/:id', accessManager.RouterAccess, accessManager.authorizeRole("admin"),gamesController.deleteGame);
 
 // Get random games and create possess entries
-router.get('/random/:userId', gamesController.getRandomGamesAndPossess);
+router.get('/random/:userId',accessManager.RouterAccess ,gamesController.getRandomGamesAndPossess);
 
 module.exports = router;
