@@ -4,6 +4,7 @@ const cors = require("cors")
 const generics = require('./routers/generitics');
 const games = require('./routers/games.routes');
 const users = require('./routers/users.routes');
+const favorites = require('./routers/favorites.routes');
 const db = require('./db'); // Import de la connexion à la BDD
 
 const app = express();
@@ -19,8 +20,8 @@ app.get('/', (req, res) => {
 
 app.use('/api/Games', games);
 app.use('/api/Users', users);
+app.use('/api/favorites', favorites);
 app.use('/api', generics);
-
 
 // Démarrage du serveur
 app.listen(PORT, () => {

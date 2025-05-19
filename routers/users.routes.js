@@ -21,4 +21,10 @@ router.put('/:id',accessManager.RouterAccess ,usersController.updateUser);
 // Delete a user
 router.delete('/:id',accessManager.RouterAccess ,usersController.deleteUser);
 
+// Get current user (me)
+router.get('/me', accessManager.RouterAccess, (req, res) => {
+  console.log('[ROUTE /me] Utilisateur courant:', req.user);
+  res.json(req.user);
+});
+
 module.exports = router;
