@@ -132,7 +132,7 @@ exports.createGame = async (req, res) => {
     res.status(201).json({ message: 'Jeu inséré avec succès.' });
   } catch (error) {
     console.error('❌ Erreur dans add_full_game :', error);
-    res.status(500).json({ error: 'Erreur lors de l’insertion du jeu.' });
+    res.status(500).json({ error: "Erreur lors de l'insertion du jeu." });
   }
 };
 
@@ -199,38 +199,86 @@ exports.getRandomGamesAndPossess = async (req, res) => {
     const minPlayers = req.query.minPlayers ? Number(req.query.minPlayers) : null;
 
     try {
+        // Vérifier que l'utilisateur existe
+        const [user] = await db.query("SELECT user_id FROM Users WHERE user_id = ?", [userId]);
+        if (user.length === 0) {
+            return res.status(404).json({ error: "Utilisateur non trouvé" });
+        }
+
+        // Sélectionner des jeux aléatoires qui ne sont pas déjà dans la table possess pour cet utilisateur
         let sql = `
-      SELECT Id, name, thumbnail, description, 
-      CONCAT(minplayers, ' - ', maxplayers) as players,
-      playingtime, minage 
-      FROM Games
-    `;
-        const values = [];
+            SELECT g.Id, g.name, g.thumbnail, g.description, 
+                   g.minplayers, g.maxplayers, g.playingtime, g.minage,
+                   g.average_ranking, g.bayes_average, g.users_rated, g.game_rank,
+                   g.url, g.owned, g.trading, g.wanted, g.wishing
+            FROM Games g
+            WHERE NOT EXISTS (
+                SELECT 1 FROM possess p 
+                WHERE p.Id = g.Id AND p.user_id = ?
+            )
+        `;
+        const values = [userId];
 
         if (minPlayers !== null) {
-            sql += ` WHERE minplayers >= ?`;
+            sql += ` AND g.minplayers >= ?`;
             values.push(minPlayers);
         }
 
         sql += ` ORDER BY RAND() LIMIT 10`;
 
+        console.log('SQL Query:', sql);
+        console.log('Values:', values);
+
         const [randomGames] = await db.query(sql, values);
+        console.log('Random games found:', randomGames.length);
 
         if (randomGames.length === 0) {
-            return res.status(404).json({ message: "No games found" });
+            return res.status(404).json({ message: "Aucun jeu disponible pour le swipe" });
         }
 
+        // Insérer les jeux dans la table possess
         for (const game of randomGames) {
-            await db.query(
-                "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, false)",
-                [game.Id, userId]
-            );
+            try {
+                await db.query(
+                    "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, false)",
+                    [game.Id, userId]
+                );
+            } catch (error) {
+                console.error('Error inserting into possess:', error);
+                // Ignorer les erreurs de doublon
+                if (error.code !== 'ER_DUP_ENTRY') {
+                    throw error;
+                }
+            }
         }
 
-        res.status(201).json({ games: randomGames });
+        // Formater les jeux pour la réponse
+        const formattedGames = randomGames.map(game => ({
+            id: game.Id,
+            name: game.name,
+            description: game.description,
+            thumbnail: game.thumbnail,
+            minplayers: game.minplayers,
+            maxplayers: game.maxplayers,
+            playingtime: game.playingtime,
+            minage: game.minage,
+            average_ranking: game.average_ranking,
+            bayes_average: game.bayes_average,
+            users_rated: game.users_rated,
+            game_rank: game.game_rank,
+            url: game.url,
+            owned: game.owned,
+            trading: game.trading,
+            wanted: game.wanted,
+            wishing: game.wishing
+        }));
+
+        res.json({ games: formattedGames });
     } catch (error) {
         console.error('❌ Error in getRandomGamesAndPossess:', error);
-        res.status(500).json({ error: 'Error while adding random games to user collection' });
+        console.error('Error details:', error.message);
+        console.error('Error code:', error.code);
+        res.status(500).json({ error: "Erreur lors de la récupération des jeux aléatoires" });
     }
 };
 
@@ -250,7 +298,7 @@ exports.favoriteGame = async (req, res) => {
         );
 
         if (existing.length === 0) {
-            // Si l’entrée n’existe pas, on peut l’insérer avec le favori
+            // Si l'entrée n'existe pas, on peut l'insérer avec le favori
             await db.query(
                 "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, ?)",
                 [gameId, userId, favorite]
@@ -292,6 +340,27 @@ exports.getFavoriteGame = async (req, res) => {
     }
 
 }
+
+exports.updateGameLikeStatus = async (req, res) => {
+    const { gameId } = req.params;
+    const { liked, userId } = req.body;
+
+    try {
+        // S'assurer que liked est soit 1 soit -1
+        const likedValue = liked > 0 ? 1 : -1;
+
+        // Mettre à jour le statut liked dans la table possess
+        await db.query(
+            "UPDATE possess SET liked = ? WHERE Id = ? AND user_id = ?",
+            [likedValue, gameId, userId]
+        );
+
+        res.json({ message: "Statut du jeu mis à jour avec succès" });
+    } catch (error) {
+        console.error('❌ Error in updateGameLikeStatus:', error);
+        res.status(500).json({ error: "Erreur lors de la mise à jour du statut du jeu" });
+    }
+};
 
 
 
