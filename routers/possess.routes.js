@@ -19,4 +19,6 @@ router.delete('/', possessController.deleteGameUser);
 
 router.post('/:id/swipe', possessController.swipeGame);
 
+router.get('/recommend', possessController.recommend_game)
+
 module.exports = router;

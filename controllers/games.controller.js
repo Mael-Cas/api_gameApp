@@ -284,11 +284,11 @@ exports.getRandomGamesAndPossess = async (req, res) => {
 
 
 exports.favoriteGame = async (req, res) => {
-    const {  gameId, favorite } = req.body;
+    const {  gameId, favorite, unfavorite } = req.body;
     const userId = req.user.userId;
 
-    if (typeof favorite !== 'boolean') {
-        return res.status(400).json({ error: "'favorite' doit être un booléen." });
+    if (typeof favorite !== 'boolean' || typeof unfavorite !== 'boolean') {
+        return res.status(400).json({ error: "'favorite' et 'unfavorite' doivent être des booléens." });
     }
 
     try {
@@ -298,20 +298,18 @@ exports.favoriteGame = async (req, res) => {
         );
 
         if (existing.length === 0) {
-            // Si l'entrée n'existe pas, on peut l'insérer avec le favori
             await db.query(
-                "INSERT INTO possess (Id, user_id, liked, favorite) VALUES (?, ?, 0, ?)",
-                [gameId, userId, favorite]
+                "INSERT INTO possess (Id, user_id, liked, favorite, unfavorite) VALUES (?, ?, 0, ?, ?)",
+                [gameId, userId, favorite, unfavorite]
             );
         } else {
-            // Sinon on met à jour le champ favorite
             await db.query(
-                "UPDATE possess SET favorite = ? WHERE user_id = ? AND Id = ?",
-                [favorite, userId, gameId]
+                "UPDATE possess SET favorite = ?, unfavorite = ? WHERE user_id = ? AND Id = ?",
+                [favorite, unfavorite, userId, gameId]
             );
         }
 
-        res.status(200).json({ message: "Mise à jour du favori réussie." });
+        res.status(200).json({ message: "Mise à jour favorite/unfavorite réussie." });
     } catch (error) {
         console.error("❌ Error in favoriteGame:", error);
         res.status(500).json({ error: "Erreur lors de la mise à jour du favori." });
@@ -320,6 +318,7 @@ exports.favoriteGame = async (req, res) => {
 }
 
 exports.getFavoriteGame = async (req, res) => {
+
     const userId = req.user.userId;
 
     try {

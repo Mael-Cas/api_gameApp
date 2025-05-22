@@ -1,7 +1,7 @@
 const db = require("../db");
 
 exports.getAllGameUsers = async (req, res) => {
-  const [rows] = await db.query("SELECT * FROM Game_Users");
+  const [rows] = await db.query("SELECT * FROM possess");
   res.json(rows);
 };
 
@@ -32,8 +32,8 @@ exports.deleteGameUser = async (req, res) => {
 };
 
 exports.swipeGame = async (req, res) => {
-  const  gameId = req.params;
-  const userId = req.auth.userId;
+  const  gameId = req.params.id;
+  const userId = req.user.userId;
   const { swipe } = req.body; // doit être 1 (like) ou -1 (dislike)
 
   // Validation rapide
@@ -57,3 +57,14 @@ exports.swipeGame = async (req, res) => {
     res.status(500).json({ error: "Erreur lors du swipe du jeu" });
   }
 };
+
+exports.recommend_game = async (req, res) => {
+  try{
+    const [result] = await db.query("CALL recommend_games_for_user(?)", [req.user.userId]);
+    res.status(200).json({result})
+  }catch(err){
+    console.error("❌ Error in recommend_game:", error);
+    res.status(500).json({ error: "Erreur lors des recommandations" });
+  }
+
+}
