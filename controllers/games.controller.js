@@ -529,6 +529,106 @@ exports.getRandomGamesAndPossess = async (req, res) => {
     }
 };
 
+/**
+ * Filtre les jeux selon plusieurs critères.
+ * @param {Request} req
+ * @param {Response} res
+ */
+exports.filterGames = async (req, res) => {
+    try {
+        console.log('filterGames - Début avec body:', req.body);
+        
+        const {
+            players,
+            maxDuration,
+            minAge,
+            categories,
+            mechanics
+        } = req.body;
+
+        // Construction de la requête SQL de base
+        let sql = `
+            SELECT DISTINCT g.*, 
+                   GROUP_CONCAT(DISTINCT c.name) as categories,
+                   GROUP_CONCAT(DISTINCT m.name) as mechanics
+            FROM Games g
+            LEFT JOIN Game_Categories gc ON g.Id = gc.Id
+            LEFT JOIN Categories c ON gc.category_id = c.category_id
+            LEFT JOIN Game_Mechanics gm ON g.Id = gm.Id
+            LEFT JOIN Mechanics m ON gm.mechanic_id = m.mechanic_id
+        `;
+
+        const conditions = [];
+        const params = [];
+
+        // Filtre par nombre de joueurs
+        if (players) {
+            const playerCount = parseInt(players);
+            conditions.push('(g.minplayers <= ? AND g.maxplayers >= ?)');
+            params.push(playerCount, playerCount);
+        }
+
+        // Filtre par durée maximale
+        if (maxDuration) {
+            const duration = parseInt(maxDuration);
+            conditions.push('g.playingtime <= ?');
+            params.push(duration);
+        }
+
+        // Filtre par âge minimum
+        if (minAge) {
+            const age = parseInt(minAge);
+            conditions.push('g.minage <= ?');
+            params.push(age);
+        }
+
+        // Filtre par catégories
+        if (categories && Array.isArray(categories) && categories.length > 0) {
+            conditions.push('c.name IN (?)');
+            params.push(categories);
+        }
+
+        // Filtre par mécaniques
+        if (mechanics && Array.isArray(mechanics) && mechanics.length > 0) {
+            conditions.push('m.name IN (?)');
+            params.push(mechanics);
+        }
+
+        // Ajout des conditions à la requête
+        if (conditions.length > 0) {
+            sql += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        // Groupement et limite
+        sql += ' GROUP BY g.Id LIMIT 10';
+
+        console.log('filterGames - Requête SQL:', sql);
+        console.log('filterGames - Paramètres:', params);
+
+        // Exécution de la requête
+        const [games] = await db.query(sql, params);
+
+        console.log('filterGames - Nombre de jeux trouvés:', games.length);
+
+        // Formater les résultats
+        const formattedGames = games.map(game => ({
+            ...game,
+            categories: game.categories ? game.categories.split(',') : [],
+            mechanics: game.mechanics ? game.mechanics.split(',') : []
+        }));
+
+        // Renvoyer le format attendu par le frontend
+        res.status(200).json({
+            games: formattedGames,
+            totalPages: Math.ceil(formattedGames.length / 10),
+            currentPage: 1
+        });
+    } catch (error) {
+        console.error('filterGames - Erreur:', error);
+        res.status(500).json({ error: "Erreur lors de la récupération des jeux" });
+    }
+};
+
 
 
 

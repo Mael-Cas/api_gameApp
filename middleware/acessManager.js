@@ -9,7 +9,9 @@ const jwt = require('jsonwebtoken');
 const PUBLIC_ROUTES = [
     '/api/Users/login',
     '/api/Users/register',
-    '/api/Games?',  // Uniquement pour les requêtes GET
+    '/api/Games',  // Toutes les routes GET de jeux
+    '/api/Games/search',
+    '/api/Games/filter',
 ];
 
 /**
@@ -21,7 +23,14 @@ const PUBLIC_ROUTES = [
  * @param {Function} next
  */
 exports.RouterAccess = (req, res, next) => {
-    const isPublicRoute = PUBLIC_ROUTES.some(route => req.originalUrl.startsWith(route));
+    // Vérifier si c'est une route publique
+    const isPublicRoute = PUBLIC_ROUTES.some(route => {
+        if (route === '/api/Games') {
+            // Pour /api/Games, on autorise uniquement les requêtes GET
+            return req.originalUrl.startsWith(route) && req.method === 'GET';
+        }
+        return req.originalUrl.startsWith(route);
+    });
 
     if (isPublicRoute) {
         return next();

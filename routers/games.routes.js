@@ -20,6 +20,11 @@ router.get('/', gamesController.getAllGames);
 router.get('/search', gamesController.searchGamesByName);
 
 /**
+ * Filtre les jeux selon plusieurs critères (route publique)
+ */
+router.post('/filter', gamesController.filterGames);
+
+/**
  * Récupère un jeu par son ID
  */
 router.get('/:id', gamesController.getGameById);
