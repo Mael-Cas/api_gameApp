@@ -1,16 +1,27 @@
+/**
+ * Contrôleur des jeux
+ * Fournit les fonctions pour gérer les jeux (CRUD, recherche, etc.)
+ * Utilise la base de données via le module db
+ */
 const db = require("../db");
 
+/**
+ * Récupère la liste paginée de tous les jeux.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.getAllGames = async (req, res) => {
   try {
+    // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // Get total count of games
+    // Compter le nombre total de jeux
     const [countResult] = await db.query("SELECT COUNT(*) as total FROM Games");
     const total = countResult[0].total;
 
-    // Get paginated games
+    // Récupérer les jeux paginés
     const [rows] = await db.query(
       "SELECT * FROM Games LIMIT ? OFFSET ?",
       [limit, offset]
@@ -26,11 +37,15 @@ exports.getAllGames = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error in getAllGames:', error);
     res.status(500).json({ error: 'Error while fetching games' });
   }
 };
 
+/**
+ * Récupère les détails d'un jeu par son ID.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.getGameById = async (req, res) => {
   const [rows] = await db.query("SELECT * FROM game_full_details WHERE game_id = ?", [
     req.params.id,
@@ -39,32 +54,97 @@ exports.getGameById = async (req, res) => {
   res.json(rows[0]);
 };
 
+/**
+ * Recherche des jeux par nom.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.searchGamesByName = async (req, res) => {
+    console.log('searchGamesByName - Début de la fonction');
+    console.log('searchGamesByName - Paramètres de requête:', req.query);
+    
     const nameQuery = req.query.name;
+    console.log('searchGamesByName - Nom recherché:', nameQuery);
 
     if (!nameQuery || nameQuery.trim() === "") {
+        console.log('searchGamesByName - Erreur: paramètre name manquant ou vide');
         return res.status(400).json({ message: "Missing or empty 'name' query parameter" });
     }
 
+    // Vérifier la longueur minimale
+    if (nameQuery.length < 3) {
+        console.log('searchGamesByName - Recherche trop courte, retour vide');
+        return res.status(200).json({ games: [] });
+    }
+
     try {
+        console.log('searchGamesByName - Exécution de la requête SQL');
+        // Recherche SQL avec LIKE et plus d'informations
         const [games] = await db.query(
-            `SELECT Id, name, thumbnail, description, 
-              CONCAT(minplayers, ' - ', maxplayers) AS players,
-              playingtime, minage 
-       FROM Games 
-       WHERE name LIKE ?`,
+            `SELECT g.*, 
+                    GROUP_CONCAT(DISTINCT c.name) as categories,
+                    GROUP_CONCAT(DISTINCT m.name) as mechanics,
+                    GROUP_CONCAT(DISTINCT d.name) as designers,
+                    GROUP_CONCAT(DISTINCT p.name) as publishers,
+                    GROUP_CONCAT(DISTINCT a.name) as artists,
+                    GROUP_CONCAT(DISTINCT f.name) as families,
+                    GROUP_CONCAT(DISTINCT e.name) as expansions,
+                    GROUP_CONCAT(DISTINCT i.name) as implementations
+             FROM Games g
+             LEFT JOIN Game_Categories gc ON g.Id = gc.Id
+             LEFT JOIN Categories c ON gc.category_id = c.category_id
+             LEFT JOIN Game_Mechanics gm ON g.Id = gm.Id
+             LEFT JOIN Mechanics m ON gm.mechanic_id = m.mechanic_id
+             LEFT JOIN Game_Designers gd ON g.Id = gd.Id
+             LEFT JOIN Designers d ON gd.designer_id = d.designer_id
+             LEFT JOIN Game_Publishers gp ON g.Id = gp.Id
+             LEFT JOIN Publishers p ON gp.publisher_id = p.publisher_id
+             LEFT JOIN Game_Artists ga ON g.Id = ga.Id
+             LEFT JOIN Artists a ON ga.artist_id = a.artist_id
+             LEFT JOIN Game_Families gf ON g.Id = gf.Id
+             LEFT JOIN Families f ON gf.family_id = f.family_id
+             LEFT JOIN Game_Expansions ge ON g.Id = ge.Id
+             LEFT JOIN Expansions e ON ge.expansion_id = e.expansion_id
+             LEFT JOIN Game_Implementations gi ON g.Id = gi.Id
+             LEFT JOIN Implementations i ON gi.implementation_id = i.implementation_id
+             WHERE g.name LIKE ?
+             GROUP BY g.Id
+             LIMIT 50`,
             [`%${nameQuery}%`]
         );
 
-        res.status(200).json({ games });
+        console.log('searchGamesByName - Nombre de résultats trouvés:', games.length);
+
+        // Formater les résultats pour séparer les listes
+        const formattedGames = games.map(game => ({
+            ...game,
+            categories: game.categories ? game.categories.split(',') : [],
+            mechanics: game.mechanics ? game.mechanics.split(',') : [],
+            designers: game.designers ? game.designers.split(',') : [],
+            publishers: game.publishers ? game.publishers.split(',') : [],
+            artists: game.artists ? game.artists.split(',') : [],
+            families: game.families ? game.families.split(',') : [],
+            expansions: game.expansions ? game.expansions.split(',') : [],
+            implementations: game.implementations ? game.implementations.split(',') : []
+        }));
+
+        console.log('searchGamesByName - Envoi de la réponse');
+        res.status(200).json({ games: formattedGames });
     } catch (error) {
-        console.error("❌ Error in searchGamesByName:", error);
-        res.status(500).json({ error: "Error while searching for games" });
+        console.error('searchGamesByName - Erreur:', error);
+        console.error('searchGamesByName - Stack trace:', error.stack);
+        res.status(500).json({ error: "Erreur lors de la recherche des jeux" });
     }
 };
 
-
+/**
+ * Crée un nouveau jeu dans la base de données.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.createGame = async (req, res) => {
+  console.log('createGame - Début avec body:', req.body);
+  
   const {
     name,
     description,
@@ -72,18 +152,18 @@ exports.createGame = async (req, res) => {
     minplayers,
     maxplayers,
     playingtime,
-    minplayingtime,
-    maxplayingtime,
+    minplaytime,
+    maxplaytime,
     minage,
-    average_ranking,
+    average,
     bayes_average,
     users_rated,
-    game_rank,
+    rank,
     url,
     thumbnail,
     owned,
     trading,
-    wanted,
+    wanting,
     wishing,
     categories,
     mechanics,
@@ -96,46 +176,153 @@ exports.createGame = async (req, res) => {
   } = req.body;
 
   try {
+    console.log('createGame - Paramètres préparés:', {
+      name, description, yearpublished, minplayers, maxplayers,
+      playingtime, minplaytime, maxplaytime, minage, average,
+      bayes_average, users_rated, rank, url, thumbnail,
+      owned, trading, wanting, wishing, categories,
+      mechanics, designers, publishers, artists,
+      families, expansions, implementations
+    });
+
+    // Obtenir le prochain ID disponible
+    const [maxIdResult] = await db.query('SELECT MAX(Id) as maxId FROM Games');
+    const nextId = (maxIdResult[0].maxId || 0) + 1;
+
+    // Insérer le jeu principal
     const [result] = await db.query(
-      `CALL add_full_game(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Games (
+        Id, name, description, yearpublished, minplayers, maxplayers,
+        playingtime, minplayingtime, maxplayingtime, minage, average_ranking,
+        bayes_average, users_rated, game_rank, url, thumbnail,
+        owned, trading, wanted, wishing
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        nextId,
         name,
         description,
         yearpublished,
         minplayers,
         maxplayers,
         playingtime,
-        minplayingtime,
-        maxplayingtime,
+        minplaytime,
+        maxplaytime,
         minage,
-        average_ranking,
-        bayes_average,
-        users_rated,
-        game_rank,
-        url,
-        thumbnail,
-        owned,
-        trading,
-        wanted,
-        wishing,
-        categories,       // ex: '1,2,6'
-        mechanics,        // ex: '5,7,10'
-        designers,
-        publishers,
-        artists,
-        families,
-        expansions,
-        implementations
+        average || null,
+        bayes_average || null,
+        users_rated || null,
+        rank || null,
+        url || null,
+        thumbnail || null,
+        owned || null,
+        trading || null,
+        wanting || null,
+        wishing || null
       ]
     );
 
-    res.status(201).json({ message: 'Jeu inséré avec succès.' });
+    console.log('createGame - Jeu inséré avec ID:', nextId);
+
+    // Fonction utilitaire pour insérer les relations
+    const insertRelation = async (table, name, gameId) => {
+      try {
+        // Mapping des noms de tables vers leurs IDs
+        const idColumnMap = {
+          'Categories': 'category_id',
+          'Mechanics': 'mechanic_id',
+          'Designers': 'designer_id',
+          'Publishers': 'publisher_id',
+          'Artists': 'artist_id',
+          'Families': 'family_id',
+          'Expansions': 'expansion_id',
+          'Implementations': 'implementation_id'
+        };
+
+        const idColumn = idColumnMap[table];
+        if (!idColumn) {
+          throw new Error(`Table ${table} non reconnue`);
+        }
+
+        // Obtenir le prochain ID disponible pour la table
+        const [maxIdResult] = await db.query(`SELECT MAX(${idColumn}) as maxId FROM ${table}`);
+        const nextId = (maxIdResult[0].maxId || 0) + 1;
+
+        // Vérifier si l'entité existe déjà
+        const [existingEntity] = await db.query(
+          `SELECT ${idColumn} FROM ${table} WHERE name = ?`,
+          [name]
+        );
+
+        let entityId;
+        if (existingEntity.length > 0) {
+          entityId = existingEntity[0][idColumn];
+        } else {
+          // Insérer la nouvelle entité avec son ID
+          await db.query(
+            `INSERT INTO ${table} (${idColumn}, name) VALUES (?, ?)`,
+            [nextId, name]
+          );
+          entityId = nextId;
+        }
+
+        // Insérer la relation
+        await db.query(
+          `INSERT INTO Game_${table} (Id, ${idColumn}) VALUES (?, ?)`,
+          [gameId, entityId]
+        );
+
+        console.log(`createGame - Relation ${table} insérée avec succès:`, { name, entityId, gameId });
+      } catch (error) {
+        console.error(`createGame - Erreur lors de l'insertion de la relation ${table}:`, error);
+        throw error;
+      }
+    };
+
+    // Insérer les relations
+    const insertAllRelations = async (items, table) => {
+      if (!items || !Array.isArray(items)) return;
+      for (const item of items) {
+        await insertRelation(table, item, nextId);
+      }
+    };
+
+    // Insérer les relations une par une pour mieux gérer les erreurs
+    try {
+      if (categories) await insertAllRelations(categories, 'Categories');
+      if (mechanics) await insertAllRelations(mechanics, 'Mechanics');
+      if (designers) await insertAllRelations(designers, 'Designers');
+      if (publishers) await insertAllRelations(publishers, 'Publishers');
+      if (artists) await insertAllRelations(artists, 'Artists');
+      if (families) await insertAllRelations(families, 'Families');
+      if (expansions) await insertAllRelations(expansions, 'Expansions');
+      if (implementations) await insertAllRelations(implementations, 'Implementations');
+    } catch (error) {
+      console.error('createGame - Erreur lors de l\'insertion des relations:', error);
+      // Supprimer le jeu principal en cas d'erreur
+      await db.query('DELETE FROM Games WHERE Id = ?', [nextId]);
+      throw error;
+    }
+
+    console.log('createGame - Toutes les relations ont été insérées');
+    res.status(201).json({ 
+      message: 'Jeu inséré avec succès.',
+      gameId: nextId
+    });
   } catch (error) {
-    console.error('❌ Erreur dans add_full_game :', error);
-    res.status(500).json({ error: "Erreur lors de l'insertion du jeu." });
+    console.error('createGame - Erreur détaillée:', error);
+    console.error('createGame - Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: "Erreur lors de l'insertion du jeu.",
+      details: error.message 
+    });
   }
 };
 
+/**
+ * Met à jour un jeu existant.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.updateGame = async (req, res) => {
   try {
     const {
@@ -168,10 +355,7 @@ exports.updateGame = async (req, res) => {
       implementations
     } = req.body;
 
-    console.log('Updating game with data:', req.body);
-    console.log('Game ID:', req.params.id);
-
-    // Mise à jour des informations de base du jeu
+    // Mise à jour du jeu
     const [result] = await db.query(
       `UPDATE Games 
        SET name = ?, 
@@ -218,157 +402,26 @@ exports.updateGame = async (req, res) => {
       ]
     );
 
-    // Fonction pour obtenir l'ID à partir du nom
-    const getIdFromName = async (table, name) => {
-      console.log(`Recherche de ${name} dans la table ${table}`);
-      try {
-        // Définir les noms de colonnes corrects pour chaque table
-        const idColumnMap = {
-          'Artists': 'artist_id',
-          'Categories': 'category_id',
-          'Mechanics': 'mechanic_id',
-          'Designers': 'designer_id',
-          'Publishers': 'publisher_id',
-          'Families': 'family_id',
-          'Expansions': 'expansion_id',
-          'Implementations': 'implementation_id'
-        };
-
-        const idColumn = idColumnMap[table];
-        if (!idColumn) {
-          throw new Error(`Table ${table} non supportée`);
-        }
-
-        // D'abord, obtenir le prochain ID disponible
-        const [maxIdResult] = await db.query(`SELECT MAX(${idColumn}) as max_id FROM ${table}`);
-        const nextId = (maxIdResult[0].max_id || 0) + 1;
-        
-        const [rows] = await db.query(`SELECT * FROM ${table} WHERE name = ?`, [name]);
-        console.log(`Résultat de la recherche pour ${name}:`, rows);
-        
-        if (rows.length > 0) {
-          const id = rows[0][idColumn];
-          console.log(`ID trouvé pour ${name}:`, id);
-          return id;
-        }
-        
-        // Si l'élément n'existe pas, on le crée avec le prochain ID
-        console.log(`Création de ${name} dans la table ${table} avec l'ID ${nextId}`);
-        const [result] = await db.query(
-          `INSERT INTO ${table} (${idColumn}, name) VALUES (?, ?)`,
-          [nextId, name]
-        );
-        console.log(`Nouvel ID créé pour ${name}:`, nextId);
-        return nextId;
-      } catch (error) {
-        console.error(`Erreur lors de la recherche/création de ${name} dans ${table}:`, error);
-        throw error;
-      }
-    };
-
-    // Mise à jour des relations
-    if (artists && artists.length > 0) {
-      console.log('Mise à jour des artistes:', artists);
-      await db.query('DELETE FROM Game_Artists WHERE Id = ?', [req.params.id]);
-      for (const artist of artists) {
-        if (artist) {
-          const artistId = await getIdFromName('Artists', artist);
-          await db.query('INSERT INTO Game_Artists (Id, artist_id) VALUES (?, ?)', [req.params.id, artistId]);
-        }
-      }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Jeu non trouvé' });
     }
 
-    if (categories && categories.length > 0) {
-      console.log('Mise à jour des catégories:', categories);
-      await db.query('DELETE FROM Game_Categories WHERE Id = ?', [req.params.id]);
-      for (const category of categories) {
-        if (category) {
-          const categoryId = await getIdFromName('Categories', category);
-          await db.query('INSERT INTO Game_Categories (Id, category_id) VALUES (?, ?)', [req.params.id, categoryId]);
-        }
-      }
-    }
-
-    if (mechanics && mechanics.length > 0) {
-      console.log('Mise à jour des mécaniques:', mechanics);
-      await db.query('DELETE FROM Game_Mechanics WHERE Id = ?', [req.params.id]);
-      for (const mechanic of mechanics) {
-        if (mechanic) {
-          const mechanicId = await getIdFromName('Mechanics', mechanic);
-          await db.query('INSERT INTO Game_Mechanics (Id, mechanic_id) VALUES (?, ?)', [req.params.id, mechanicId]);
-        }
-      }
-    }
-
-    if (designers && designers.length > 0) {
-      console.log('Mise à jour des designers:', designers);
-      await db.query('DELETE FROM Game_Designers WHERE Id = ?', [req.params.id]);
-      for (const designer of designers) {
-        if (designer) {
-          const designerId = await getIdFromName('Designers', designer);
-          await db.query('INSERT INTO Game_Designers (Id, designer_id) VALUES (?, ?)', [req.params.id, designerId]);
-        }
-      }
-    }
-
-    if (publishers && publishers.length > 0) {
-      console.log('Mise à jour des éditeurs:', publishers);
-      await db.query('DELETE FROM Game_Publishers WHERE Id = ?', [req.params.id]);
-      for (const publisher of publishers) {
-        if (publisher) {
-          const publisherId = await getIdFromName('Publishers', publisher);
-          await db.query('INSERT INTO Game_Publishers (Id, publisher_id) VALUES (?, ?)', [req.params.id, publisherId]);
-        }
-      }
-    }
-
-    if (families && families.length > 0) {
-      console.log('Mise à jour des familles:', families);
-      await db.query('DELETE FROM Game_Families WHERE Id = ?', [req.params.id]);
-      for (const family of families) {
-        if (family) {
-          const familyId = await getIdFromName('Families', family);
-          await db.query('INSERT INTO Game_Families (Id, family_id) VALUES (?, ?)', [req.params.id, familyId]);
-        }
-      }
-    }
-
-    if (expansions && expansions.length > 0) {
-      console.log('Mise à jour des extensions:', expansions);
-      await db.query('DELETE FROM Game_Expansions WHERE Id = ?', [req.params.id]);
-      for (const expansion of expansions) {
-        if (expansion) {
-          const expansionId = await getIdFromName('Expansions', expansion);
-          await db.query('INSERT INTO Game_Expansions (Id, expansion_id) VALUES (?, ?)', [req.params.id, expansionId]);
-        }
-      }
-    }
-
-    if (implementations && implementations.length > 0) {
-      console.log('Mise à jour des implémentations:', implementations);
-      await db.query('DELETE FROM Game_Implementations WHERE Id = ?', [req.params.id]);
-      for (const implementation of implementations) {
-        if (implementation) {
-          const implementationId = await getIdFromName('Implementations', implementation);
-          await db.query('INSERT INTO Game_Implementations (Id, implementation_id) VALUES (?, ?)', [req.params.id, implementationId]);
-        }
-      }
-    }
-
-    console.log('Update result:', result);
-    res.json({ message: "Game updated" });
+    res.json({ message: 'Jeu mis à jour avec succès' });
   } catch (error) {
-    console.error('❌ Error in updateGame:', error);
     res.status(500).json({ error: "Erreur lors de la mise à jour du jeu" });
   }
 };
 
+/**
+ * Supprime un jeu et toutes ses relations.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.deleteGame = async (req, res) => {
   try {
     const gameId = req.params.id;
-    console.log('Suppression du jeu avec l\'ID:', gameId);
 
-    // Supprimer d'abord toutes les relations
+    // Suppression des relations dans les tables associées
     await db.query('DELETE FROM Game_Artists WHERE Id = ?', [gameId]);
     await db.query('DELETE FROM Game_Categories WHERE Id = ?', [gameId]);
     await db.query('DELETE FROM Game_Mechanics WHERE Id = ?', [gameId]);
@@ -379,21 +432,24 @@ exports.deleteGame = async (req, res) => {
     await db.query('DELETE FROM Game_Implementations WHERE Id = ?', [gameId]);
     await db.query('DELETE FROM possess WHERE Id = ?', [gameId]);
 
-    // Enfin, supprimer le jeu lui-même
+    // Suppression du jeu principal
     const [result] = await db.query("DELETE FROM Games WHERE Id = ?", [gameId]);
     
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Jeu non trouvé" });
     }
 
-    console.log('Jeu supprimé avec succès');
     res.json({ message: "Jeu supprimé avec succès" });
   } catch (error) {
-    console.error('❌ Erreur lors de la suppression du jeu:', error);
     res.status(500).json({ error: "Erreur lors de la suppression du jeu" });
   }
 };
 
+/**
+ * Récupère des jeux aléatoires pour un utilisateur et les ajoute à sa possession.
+ * @param {Request} req
+ * @param {Response} res
+ */
 exports.getRandomGamesAndPossess = async (req, res) => {
     const userId = req.params.userId;
     const minPlayers = req.query.minPlayers ? Number(req.query.minPlayers) : null;
@@ -426,17 +482,13 @@ exports.getRandomGamesAndPossess = async (req, res) => {
 
         sql += ` ORDER BY RAND() LIMIT 10`;
 
-        console.log('SQL Query:', sql);
-        console.log('Values:', values);
-
         const [randomGames] = await db.query(sql, values);
-        console.log('Random games found:', randomGames.length);
 
         if (randomGames.length === 0) {
             return res.status(404).json({ message: "Aucun jeu disponible pour le swipe" });
         }
 
-        // Insérer les jeux dans la table possess
+        // Ajouter les jeux à la possession de l'utilisateur
         for (const game of randomGames) {
             try {
                 await db.query(
@@ -444,15 +496,13 @@ exports.getRandomGamesAndPossess = async (req, res) => {
                     [game.Id, userId]
                 );
             } catch (error) {
-                console.error('Error inserting into possess:', error);
-                // Ignorer les erreurs de doublon
                 if (error.code !== 'ER_DUP_ENTRY') {
                     throw error;
                 }
             }
         }
 
-        // Formater les jeux pour la réponse
+        // Formater la réponse
         const formattedGames = randomGames.map(game => ({
             id: game.Id,
             name: game.name,
@@ -475,89 +525,7 @@ exports.getRandomGamesAndPossess = async (req, res) => {
 
         res.json({ games: formattedGames });
     } catch (error) {
-        console.error('❌ Error in getRandomGamesAndPossess:', error);
-        console.error('Error details:', error.message);
-        console.error('Error code:', error.code);
         res.status(500).json({ error: "Erreur lors de la récupération des jeux aléatoires" });
-    }
-};
-
-
-exports.favoriteGame = async (req, res) => {
-    const {  gameId, favorite, unfavorite } = req.body;
-    const userId = req.user.userId;
-
-    if (typeof favorite !== 'boolean' || typeof unfavorite !== 'boolean') {
-        return res.status(400).json({ error: "'favorite' et 'unfavorite' doivent être des booléens." });
-    }
-
-    try {
-        const [existing] = await db.query(
-            "SELECT * FROM possess WHERE user_id = ? AND Id = ?",
-            [userId, gameId]
-        );
-
-        if (existing.length === 0) {
-            await db.query(
-                "INSERT INTO possess (Id, user_id, liked, favorite, unfavorite) VALUES (?, ?, 0, ?, ?)",
-                [gameId, userId, favorite, unfavorite]
-            );
-        } else {
-            await db.query(
-                "UPDATE possess SET favorite = ?, unfavorite = ? WHERE user_id = ? AND Id = ?",
-                [favorite, unfavorite, userId, gameId]
-            );
-        }
-
-        res.status(200).json({ message: "Mise à jour favorite/unfavorite réussie." });
-    } catch (error) {
-        console.error("❌ Error in favoriteGame:", error);
-        res.status(500).json({ error: "Erreur lors de la mise à jour du favori." });
-    }
-
-}
-
-exports.getFavoriteGame = async (req, res) => {
-
-    const userId = req.user.userId;
-
-    try {
-        // Récupère les jeux favoris pour un utilisateur donné en utilisant la vue
-        const [favoriteGames] = await db.query(
-            "SELECT * FROM user_favorite_game WHERE user_id = ?",
-            [userId]
-        );
-
-        if (favoriteGames.length === 0) {
-            return res.status(404).json({ message: "Aucun jeu favori trouvé pour cet utilisateur." });
-        }
-
-        res.status(200).json({ favoriteGames });
-    } catch (error) {
-        console.error("❌ Error in getFavoriteGame:", error);
-        res.status(500).json({ error: "Erreur lors de la récupération des jeux favoris." });
-    }
-
-}
-
-exports.updateGameLikeStatus = async (req, res) => {
-    const { gameId } = req.params;
-    const { liked, userId } = req.body;
-
-    try {
-        // S'assurer que liked est soit 1 soit -1
-        const likedValue = liked > 0 ? 1 : -1;
-
-        // Mettre à jour le statut liked dans la table possess
-        await db.query(
-            "UPDATE possess SET liked = ? WHERE Id = ? AND user_id = ?",
-            [likedValue, gameId, userId]
-        );
-
-        res.json({ message: "Statut du jeu mis à jour avec succès" });
-    } catch (error) {
-        console.error('❌ Error in updateGameLikeStatus:', error);
-        res.status(500).json({ error: "Erreur lors de la mise à jour du statut du jeu" });
     }
 };
 

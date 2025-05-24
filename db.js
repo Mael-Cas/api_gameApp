@@ -1,6 +1,13 @@
+/**
+ * Module de connexion à la base de données MySQL
+ * Utilise mysql2/promise et gère un pool de connexions
+ */
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 
+/**
+ * Création du pool de connexions MySQL
+ */
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
@@ -12,7 +19,9 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-// Vérification de la connexion au démarrage
+/**
+ * Vérification de la connexion à la base de données au démarrage
+ */
 (async () => {
   try {
     const connection = await db.getConnection();

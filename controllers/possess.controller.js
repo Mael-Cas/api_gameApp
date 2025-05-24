@@ -1,11 +1,26 @@
+/**
+ * Contrôleur de la table possess (relation utilisateur-jeu)
+ * Fournit les fonctions pour gérer les statuts de possession, favoris, swipes, recommandations, etc.
+ * Utilise la base de données via le module db
+ */
 const db = require("../db");
 // const possessService = require('../services/possess.service');
 
+/**
+ * Récupère toutes les relations de possession (tous les jeux possédés par tous les utilisateurs).
+ * @param {Request} req
+ * @param {Response} res
+ */
 const getAllGameUsers = async (req, res) => {
   const [rows] = await db.query("SELECT * FROM possess");
   res.json(rows);
 };
 
+/**
+ * Vérifie si un utilisateur possède un jeu donné et retourne les statuts associés.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const getUsersByGameId = async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -34,6 +49,11 @@ const getUsersByGameId = async (req, res) => {
   }
 };
 
+/**
+ * Met à jour le statut favori/non-apprécié d'un jeu pour un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const updateGameStatus = async (req, res) => {
   try {
     const gameId = req.params.id;
@@ -89,6 +109,11 @@ const updateGameStatus = async (req, res) => {
   }
 };
 
+/**
+ * Ajoute ou met à jour une entrée de possession pour un jeu et un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const createGameUser = async (req, res) => {
   try {
     const gameId = req.params.id || req.body.Id;
@@ -122,6 +147,11 @@ const createGameUser = async (req, res) => {
   }
 };
 
+/**
+ * Met à jour ou supprime le statut favori/non-apprécié d'un jeu pour un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const deleteGameUser = async (req, res) => {
   try {
     const gameId = req.params.id || req.body.Id;
@@ -165,6 +195,11 @@ const deleteGameUser = async (req, res) => {
   }
 };
 
+/**
+ * Gère le swipe (like/dislike) d'un jeu par un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const swipeGame = async (req, res) => {
   const gameId = req.params.id;
   const userId = req.user.userId;
@@ -217,6 +252,11 @@ const swipeGame = async (req, res) => {
   }
 };
 
+/**
+ * Recommande des jeux à un utilisateur via une procédure stockée.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const recommend_game = async (req, res) => {
   try {
     console.log('recommend_game - Début de la requête pour l\'utilisateur:', req.user.userId);
@@ -251,6 +291,11 @@ const recommend_game = async (req, res) => {
   }
 };
 
+/**
+ * Récupère tous les jeux favoris d'un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const getUserFavorites = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -270,6 +315,11 @@ const getUserFavorites = async (req, res) => {
   }
 };
 
+/**
+ * Récupère tous les jeux non appréciés d'un utilisateur.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const getUserUnfavorites = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -289,6 +339,11 @@ const getUserUnfavorites = async (req, res) => {
   }
 };
 
+/**
+ * Récupère des recommandations personnalisées selon le nombre de joueurs.
+ * @param {Request} req
+ * @param {Response} res
+ */
 const getPersonalizedRecommendations = async (req, res) => {
     try {
         const userId = req.user.userId;

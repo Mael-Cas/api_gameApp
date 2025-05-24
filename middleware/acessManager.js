@@ -1,37 +1,60 @@
+/**
+ * Middleware de gestion des accès et des autorisations
+ * Fournit la vérification du token JWT et la gestion des rôles pour les routes protégées
+ */
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 
-exports.RouterAccess = (req, res, next) => {
-    console.log('Middleware RouterAccess - URL:', req.url);
-    console.log('Middleware RouterAccess - Method:', req.method);
-    console.log('Middleware RouterAccess - Headers:', req.headers);
+// Liste des routes publiques qui ne nécessitent pas d'authentification
+const PUBLIC_ROUTES = [
+    '/api/Users/login',
+    '/api/Users/register',
+    '/api/Games?',  // Uniquement pour les requêtes GET
+];
 
-    const token = req.header('Authorization')?.split(' ')[1]; // "Bearer <token>"
+/**
+ * Middleware pour vérifier l'accès aux routes protégées via JWT.
+ * Si la route est publique, passe au middleware suivant.
+ * Si la route est protégée, vérifie le token JWT dans l'en-tête Authorization.
+ * @param {Request} req
+ * @param {Response} res
+ * @param {Function} next
+ */
+exports.RouterAccess = (req, res, next) => {
+    const isPublicRoute = PUBLIC_ROUTES.some(route => req.originalUrl.startsWith(route));
+
+    if (isPublicRoute) {
+        return next();
+    }
+
+    const authHeader = req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
 
     if (!token) {
-        console.log('Middleware RouterAccess - Token manquant');
         return res.status(403).json({ message: 'Token manquant, accès refusé' });
     }
 
-    // Vérifier la validité du token
+    // Vérification du token JWT
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
-            console.log('Middleware RouterAccess - Token invalide:', err.message);
             return res.status(403).json({ message: 'Token invalide, accès refusé' });
         }
 
-        console.log('Middleware RouterAccess - Token valide, user:', user);
-        req.user = user; // Ajouter les informations utilisateur dans la requête (par exemple l'ID de l'utilisateur)
-        next(); // Passer à la route suivante
+        req.user = user;
+        next();
     });
 }
 
-
+/**
+ * Middleware pour vérifier le rôle de l'utilisateur sur une route protégée.
+ * @param {string} requiredRole - Le rôle requis pour accéder à la route
+ * @returns {Function} Middleware Express
+ */
 exports.authorizeRole = (requiredRole) => {
     return (req, res, next) => {
         if (req.user?.permission !== requiredRole) {
             return res.status(403).json({ message: 'Accès interdit, rôle insuffisant' });
         }
-        next(); // Passer à la route suivante si l'utilisateur a le rôle requis
+        next();
     };
 };

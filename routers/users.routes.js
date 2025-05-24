@@ -1,29 +1,47 @@
+/**
+ * Routeur des utilisateurs
+ * Définit les routes pour la gestion des utilisateurs (CRUD, login, etc.)
+ * Utilise le contrôleur users.controller et le middleware d'accès
+ */
 const express = require('express');
 const router = express.Router();
 const usersController = require('../controllers/users.controller');
 const accessManager = require('../middleware/acessManager');
 
-// Get all users
-router.get('/', accessManager.RouterAccess, accessManager.authorizeRole("admin"),usersController.getAllUsers);
+/**
+ * Récupère tous les utilisateurs (admin uniquement)
+ */
+router.get('/', accessManager.authorizeRole("admin"), usersController.getAllUsers);
 
-// Get a single user by ID
-router.get('/:id',accessManager.RouterAccess ,usersController.getUserById);
+/**
+ * Récupère un utilisateur par son ID
+ */
+router.get('/:id', usersController.getUserById);
 
-// Create a new user
-router.post('/', accessManager.RouterAccess, usersController.createUser);
+/**
+ * Crée un nouvel utilisateur
+ */
+router.post('/', usersController.createUser);
 
-// Login route
-router.post('/login',usersController.login);
+/**
+ * Authentifie un utilisateur (login)
+ */
+router.post('/login', usersController.login);
 
-// Update a user
-router.put('/:id',accessManager.RouterAccess ,usersController.updateUser);
+/**
+ * Met à jour un utilisateur
+ */
+router.put('/:id', usersController.updateUser);
 
-// Delete a user
-router.delete('/:id',accessManager.RouterAccess ,usersController.deleteUser);
+/**
+ * Supprime un utilisateur
+ */
+router.delete('/:id', usersController.deleteUser);
 
-// Get current user (me)
-router.get('/me', accessManager.RouterAccess, (req, res) => {
-  console.log('[ROUTE /me] Utilisateur courant:', req.user);
+/**
+ * Récupère l'utilisateur courant (depuis le token)
+ */
+router.get('/me', (req, res) => {
   res.json(req.user);
 });
 

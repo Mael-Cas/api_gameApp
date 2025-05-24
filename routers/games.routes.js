@@ -1,19 +1,33 @@
+/**
+ * Routeur des jeux
+ * Définit les routes pour la gestion des jeux (CRUD, recherche, swipe, etc.)
+ * Utilise le contrôleur games.controller et le middleware d'accès
+ */
 const express = require('express');
 const router = express.Router();
 const gamesController = require('../controllers/games.controller');
 const accessManager = require('../middleware/acessManager');
 const db = require('../db');
 
-// Get all games
+/**
+ * Récupère tous les jeux (pagination possible)
+ */
 router.get('/', gamesController.getAllGames);
 
-// Get a game by Name
-router.get('/search/:name', gamesController.searchGamesByName);
+/**
+ * Recherche des jeux par nom
+ */
+router.get('/search', gamesController.searchGamesByName);
 
-// Get a single game by ID
+/**
+ * Récupère un jeu par son ID
+ */
 router.get('/:id', gamesController.getGameById);
 
-// Get random games for swipe
+/**
+ * Récupère 10 jeux aléatoires pour le swipe (filtrés par nombre de joueurs)
+ * Protégé par JWT
+ */
 router.get('/random/swipe', accessManager.RouterAccess, async (req, res) => {
     try {
         const playerCount = parseInt(req.query.playerCount) || 2;
@@ -28,27 +42,31 @@ router.get('/random/swipe', accessManager.RouterAccess, async (req, res) => {
 
         res.json(games);
     } catch (error) {
-        console.error('Erreur lors de la récupération des jeux aléatoires:', error);
+        // Log d'erreur critique
+        console.error('[ERROR] Erreur lors de la récupération des jeux aléatoires:', error.message);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
 
-// Get random games and create possess entries
+/**
+ * Récupère des jeux aléatoires et crée les entrées de possession pour l'utilisateur
+ * Protégé par JWT
+ */
 router.get('/random/:userId', accessManager.RouterAccess, gamesController.getRandomGamesAndPossess);
 
-// Get all favorite game of a user
-router.get('/favorite', accessManager.RouterAccess, gamesController.getFavoriteGame);
-
-// Add game to user favorite
-router.post('/favorite', accessManager.RouterAccess, gamesController.favoriteGame);
-
-// Create a new game
+/**
+ * Crée un nouveau jeu (admin uniquement)
+ */
 router.post('/', accessManager.RouterAccess, accessManager.authorizeRole("admin"), gamesController.createGame);
 
-// Update a game
+/**
+ * Met à jour un jeu (admin uniquement)
+ */
 router.put('/:id', accessManager.RouterAccess, accessManager.authorizeRole("admin"), gamesController.updateGame);
 
-// Delete a game
+/**
+ * Supprime un jeu (admin uniquement)
+ */
 router.delete('/:id', accessManager.RouterAccess, accessManager.authorizeRole("admin"), gamesController.deleteGame);
 
 module.exports = router;
